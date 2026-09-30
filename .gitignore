@@ -1,0 +1,80 @@
+# =============================================================================
+# Rooftop Energy Estimator — .gitignore
+# Protects large binary artifacts (DEC-06) and standard build/dev cruft.
+# Large model/data artifacts are distributed out-of-band (DEC-05, ADR-0006).
+# =============================================================================
+
+# --- DEC-06: large files that MUST NEVER be committed ------------------------
+unet_buildings.keras
+sr_training_30.zip
+notebook final segmentation.ipynb
+
+# --- ML model artifacts (90MB U-Net etc.) ------------------------------------
+# Ignore all Keras model blobs...
+*.keras
+*.h5
+*.pb
+*.pth
+*.pt
+*.onnx
+*.tflite
+# ...but keep the tiny randomly-initialised CI test model (DEC-05).
+!ml/tests/fixtures/ci_unet.keras
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+.installed.cfg
+.venv/
+venv/
+.venv-ml/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.cache/
+
+# --- Node / frontend ---------------------------------------------------------
+node_modules/
+frontend/node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Environment / secrets ---------------------------------------------------
+.env
+*.env
+!.env.example
+
+# --- Runtime / user data -----------------------------------------------------
+media/
+*.log
+logs/
+
+# --- OS / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# =============================================================================
+# Explicitly KEPT (allow-listed) small sample assets:
+#   sample-data/*.tif                 (small sample imagery)
+#   ml/tests/fixtures/ci_unet.keras   (tiny CI model, negated above)
+# No global *.tif ignore — small sample GeoTIFFs stay in git.
+# =============================================================================

@@ -1,0 +1,159 @@
+# =============================================================================
+# docker-compose.yml — BASE profile (arch §2). Six services:
+#   frontend · api · worker · beat · db (PostGIS) · redis
+#
+#   docker compose up --build      # starts the full base stack
+#
+# All app images run non-root, use pinned base tags and healthchecks.
+# Values interpolate from a local .env (auto-loaded by compose); sensible
+# non-secret defaults keep `docker compose config` working without one.
+#
+# OPTIONAL profiles are documented in the architecture (§2) but intentionally
+# NOT implemented here to keep the base footprint at six services (R4):
+#   --profile mlops          -> mlflow
+#   --profile observability  -> otel-collector, prometheus, grafana, tempo
+#   --profile storage-s3     -> minio  (set STORAGE_BACKEND=s3)
+# =============================================================================
+
+# Shared config for the three Django/Celery services (same image).
+x-backend-common: &backend-common
+  build:
+    context: .
+    dockerfile: infrastructure/docker/backend.Dockerfile
+  image: rooftop-energy-estimator-backend:dev
+  working_dir: /app/backend          # so `python manage.py` / `config.*` resolve
+  env_file:
+    - path: .env
+      required: false
+  environment: &backend-env
+    DATABASE_URL: ${DATABASE_URL:-postgis://rooftop:rooftop@db:5432/rooftop}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    STORAGE_BACKEND: ${STORAGE_BACKEND:-filesystem}
+    SECRET_KEY: ${SECRET_KEY:-dev-insecure-change-me}
+    DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+  volumes:
+    - .:/app                          # dev hot-reload (repo root -> /app)
+    - media:/app/media                # shared artifacts (api + worker)
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  # --- Frontend SPA (Vite dev server) ----------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+      target: dev
+    image: rooftop-energy-estimator-frontend:dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api}
+    volumes:
+      - ./frontend:/app                # source bind for hot reload
+      - /app/node_modules              # keep container-installed deps
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Django REST API -------------------------------------------------------
+  api:
+    <<: *backend-common
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}   # api owns migrations on startup
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+
+  # --- Celery worker (orchestration + cpu-heavy queues) ----------------------
+  worker:
+    <<: *backend-common
+    environment:
+      <<: *backend-env
+      CELERY_QUEUES: ${CELERY_QUEUES:-orchestration,cpu-heavy}
+    command: ["celery", "-A", "config", "worker", "-Q", "orchestration,cpu-heavy", "-l", "info", "--concurrency", "2"]
+    healthcheck:
+      test: ["CMD", "celery", "-A", "config", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      start_period: 45s
+      retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  # --- Celery beat (scheduled cleanup/retention) -----------------------------
+  beat:
+    <<: *backend-common
+    command: ["celery", "-A", "config", "beat", "-l", "info", "--schedule", "/app/beat/celerybeat-schedule"]
+    volumes:
+      - .:/app
+      - celerybeat:/app/beat
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --- PostgreSQL + PostGIS (authoritative state) ----------------------------
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rooftop}
+      POSTGRES_USER: ${POSTGRES_USER:-rooftop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rooftop}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rooftop} -d ${POSTGRES_DB:-rooftop}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    restart: unless-stopped
+
+  # --- Redis (Celery broker + result backend, transport only) ----------------
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  media:
+  celerybeat:
