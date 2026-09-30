@@ -27,6 +27,7 @@ _POLYGON = GEOSGeometry(
 def test_create_makes_draft_with_defaults(project: Any) -> None:
     """Create yields a draft analysis, one area, and DEC-01 assumptions."""
     analysis = AnalysisService().create(project, "A", _POLYGON)
+
     assert analysis.status == AnalysisStatus.DRAFT
     assert analysis.areas.count() == 1
     assert analysis.assumption.usable_roof_fraction == 0.70
@@ -36,8 +37,12 @@ def test_create_makes_draft_with_defaults(project: Any) -> None:
 def test_create_applies_assumption_overrides(project: Any) -> None:
     """Provided assumption overrides replace the defaults."""
     analysis = AnalysisService().create(
-        project, "A", _POLYGON, assumptions={"tilt_deg": 35.0, "source": "user"}
+        project,
+        "A",
+        _POLYGON,
+        assumptions={"tilt_deg": 35.0, "source": "user"},
     )
+
     assert analysis.assumption.tilt_deg == 35.0
     assert analysis.assumption.source == "user"
 
@@ -46,9 +51,11 @@ def test_snapshot_freezes_versions(project: Any) -> None:
     """Snapshot pins the active model and solar-method versions."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
+
     analysis = AnalysisService().create(project, "A", _POLYGON)
 
     AnalysisService().snapshot(analysis)
+
     assert analysis.model_version is not None
     assert analysis.calculation_version is not None
     assert analysis.snapshot["processing_config"]["tiling"]["tile"] == 256
@@ -58,7 +65,9 @@ def test_submit_requires_key(project: Any) -> None:
     """Submitting without a key raises ValidationError."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
+
     analysis = AnalysisService().create(project, "A", _POLYGON)
+
     with pytest.raises(ValidationError):
         AnalysisService().submit(analysis, "")
 
@@ -67,8 +76,10 @@ def test_resubmit_different_key_conflicts(project: Any) -> None:
     """A second submit with a different key conflicts."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
+
     analysis = AnalysisService().create(project, "A", _POLYGON)
     AnalysisService().submit(analysis, "key-1")
+
     with pytest.raises(ConflictError):
         AnalysisService().submit(analysis, "key-2")
 
@@ -76,18 +87,27 @@ def test_resubmit_different_key_conflicts(project: Any) -> None:
 def test_assumption_resolver_returns_effective_values(project: Any) -> None:
     """The resolver returns all assumption fields for the pipeline."""
     analysis = AnalysisService().create(project, "A", _POLYGON)
+
     resolved = AssumptionResolver().resolve(analysis)
+
     assert resolved["usable_roof_fraction"] == 0.70
-    assert set(resolved) >= {"tilt_deg", "azimuth_deg", "shading", "system_losses"}
+    assert set(resolved) >= {
+        "tilt_deg",
+        "azimuth_deg",
+        "shading",
+        "system_losses",
+    }
 
 
 def test_update_draft_blocked_after_submit(project: Any) -> None:
     """Editing a non-draft analysis raises ConflictError."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
+
     analysis = AnalysisService().create(project, "A", _POLYGON)
     AnalysisService().submit(analysis, "key-1")
     analysis = Analysis.objects.get(pk=analysis.pk)
+
     with pytest.raises(ConflictError):
         AnalysisService().update_draft(analysis, {"name": "B"})
 
@@ -120,38 +140,67 @@ _IN_RANGE: dict[str, Any] = {
 
 
 @pytest.mark.parametrize("field", sorted(_OUT_OF_RANGE))
-def test_create_rejects_out_of_range_assumption(project: Any, field: str) -> None:
+def test_create_rejects_out_of_range_assumption(
+    project: Any,
+    field: str,
+) -> None:
     """Each out-of-range assumption field is rejected on create."""
     with pytest.raises(ValidationError):
-        AnalysisService().create(project, "A", _POLYGON, assumptions={field: _OUT_OF_RANGE[field]})
+        AnalysisService().create(
+            project,
+            "A",
+            _POLYGON,
+            assumptions={field: _OUT_OF_RANGE[field]},
+        )
 
 
 @pytest.mark.parametrize("field", sorted(_IN_RANGE))
-def test_create_accepts_in_range_assumption(project: Any, field: str) -> None:
+def test_create_accepts_in_range_assumption(
+    project: Any,
+    field: str,
+) -> None:
     """Each in-range boundary assumption value is accepted on create."""
     analysis = AnalysisService().create(
-        project, "A", _POLYGON, assumptions={field: _IN_RANGE[field]}
+        project,
+        "A",
+        _POLYGON,
+        assumptions={field: _IN_RANGE[field]},
     )
+
     assert getattr(analysis.assumption, field) == _IN_RANGE[field]
 
 
 def test_create_rejects_non_numeric_assumption(project: Any) -> None:
     """A non-numeric assumption value is rejected."""
     with pytest.raises(ValidationError):
-        AnalysisService().create(project, "A", _POLYGON, assumptions={"tilt_deg": "flat"})
+        AnalysisService().create(
+            project,
+            "A",
+            _POLYGON,
+            assumptions={"tilt_deg": "flat"},
+        )
 
 
 def test_create_rejects_invalid_source(project: Any) -> None:
     """An unknown assumption source classification is rejected."""
     with pytest.raises(ValidationError):
-        AnalysisService().create(project, "A", _POLYGON, assumptions={"source": "guessed"})
+        AnalysisService().create(
+            project,
+            "A",
+            _POLYGON,
+            assumptions={"source": "guessed"},
+        )
 
 
 def test_update_draft_rejects_out_of_range(project: Any) -> None:
     """A draft update with an out-of-range override is rejected."""
     analysis = AnalysisService().create(project, "A", _POLYGON)
+
     with pytest.raises(ValidationError):
-        AnalysisService().update_draft(analysis, {"assumptions": {"tilt_deg": 120.0}})
+        AnalysisService().update_draft(
+            analysis,
+            {"assumptions": {"tilt_deg": 120.0}},
+        )
 
 
 # --- E2/E3: immutable snapshot + reopen determinism -------------------------
@@ -161,11 +210,18 @@ def test_snapshot_freezes_assumptions_and_versions(project: Any) -> None:
     """Snapshot captures frozen assumptions and pinned version labels."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
-    analysis = AnalysisService().create(project, "A", _POLYGON, assumptions={"tilt_deg": 33.0})
+
+    analysis = AnalysisService().create(
+        project,
+        "A",
+        _POLYGON,
+        assumptions={"tilt_deg": 33.0},
+    )
 
     AnalysisService().snapshot(analysis)
 
     frozen = analysis.snapshot["assumptions"]
+
     assert frozen["tilt_deg"] == 33.0
     assert frozen["usable_roof_fraction"] == 0.70
     assert analysis.snapshot["model_version"]
@@ -173,15 +229,23 @@ def test_snapshot_freezes_assumptions_and_versions(project: Any) -> None:
 
 
 def test_snapshot_is_stable_after_submit(project: Any) -> None:
-    """The frozen snapshot equals what was captured and stays stable (reopen)."""
+    """The frozen snapshot equals what was captured and stays stable."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
-    analysis = AnalysisService().create(project, "A", _POLYGON, assumptions={"tilt_deg": 33.0})
+
+    analysis = AnalysisService().create(
+        project,
+        "A",
+        _POLYGON,
+        assumptions={"tilt_deg": 33.0},
+    )
     AnalysisService().submit(analysis, "key-1")
 
     frozen = Analysis.objects.get(pk=analysis.pk).snapshot
-    # Reopen: reloading the persisted analysis reproduces the identical snapshot.
+
+    # Reopen: reloading the persisted analysis reproduces the same snapshot.
     reopened = Analysis.objects.get(pk=analysis.pk).snapshot
+
     assert reopened == frozen
     assert frozen["assumptions"]["tilt_deg"] == 33.0
     assert "code_commit" in frozen
@@ -191,6 +255,7 @@ def test_snapshot_preserves_existing_imagery_key(project: Any) -> None:
     """Re-snapshotting does not clobber imagery metadata added by the pipeline."""
     ModelRegistryService.get_or_create_default()
     SolarMethodRegistry.get_or_create_default()
+
     analysis = AnalysisService().create(project, "A", _POLYGON)
     analysis.snapshot = {"imagery": {"checksum": "abc123"}}
 
@@ -202,27 +267,59 @@ def test_snapshot_preserves_existing_imagery_key(project: Any) -> None:
 # --- E4: delete cascade + surviving audit event -----------------------------
 
 
-def test_deleting_project_records_surviving_audit_event(project: Any) -> None:
+def test_deleting_project_records_surviving_audit_event(
+    project: Any,
+) -> None:
     """Deleting a project cascades to analyses and records a surviving event."""
     analysis = AnalysisService().create(project, "A", _POLYGON)
-    analysis_id = analysis.pk
+
+    # Capture identifiers before deletion because Django clears the deleted
+    # model instance's primary key after delete() completes.
+    project_id = str(project.pk)
+    analysis_id = str(analysis.pk)
 
     project.delete()
 
     assert not Analysis.objects.filter(pk=analysis_id).exists()
-    events = AuditEvent.objects.filter(action="analysis.deleted", target_id=str(analysis_id))
-    assert events.count() == 1
-    event = events.get()
-    assert event.metadata["project_id"] == str(project.pk)
+
+    event = AuditEvent.objects.get(
+        action="analysis.deleted",
+        target_id=analysis_id,
+    )
+
+    assert event.target_type == "Analysis"
+    assert event.metadata["analysis_id"] == analysis_id
+    assert event.metadata["project_id"] == project_id
 
 
 def test_deleting_analysis_records_audit_event(project: Any) -> None:
     """Directly deleting an analysis records a surviving audit event."""
     analysis = AnalysisService().create(project, "A", _POLYGON)
-    analysis_id = analysis.pk
+
+    project_id = str(project.pk)
+    analysis_id = str(analysis.pk)
+    analysis_name = analysis.name
+    analysis_status = analysis.status
 
     analysis.delete()
 
-    assert AuditEvent.objects.filter(
-        action="analysis.deleted", target_id=str(analysis_id)
-    ).exists()
+    assert not Analysis.objects.filter(pk=analysis_id).exists()
+
+    event = AuditEvent.objects.get(
+        action="analysis.deleted",
+        target_id=analysis_id,
+    )
+
+    assert event.target_type == "Analysis"
+    assert event.metadata["analysis_id"] == analysis_id
+    assert event.metadata["project_id"] == project_id
+    assert event.metadata["name"] == analysis_name
+    assert event.metadata["status"] == analysis_status
+
+
+
+
+
+
+
+

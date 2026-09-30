@@ -1,7 +1,7 @@
 """Health endpoints: liveness and readiness.
 
-* ``/api/health/`` (liveness) — process is up; no dependency checks.
-* ``/api/health/ready/`` (readiness) — best-effort probe of database, Redis,
+* ``/health/`` (liveness) — process is up; no dependency checks.
+* ``/health/ready/`` (readiness) — best-effort probe of database, Redis,
   storage, and ML model presence. Returns 200 only when all required checks
   pass, otherwise 503 with a per-check breakdown.
 

@@ -47,21 +47,15 @@ def capture_analysis_project_id(sender: type[Analysis], instance: Analysis, **_:
 
 
 @receiver(post_delete, sender=Analysis, dispatch_uid="analysis_delete_audit")
-def record_analysis_deletion(sender: type[Analysis], instance: Analysis, **_: Any) -> None:
-    """Record an immutable audit event when an :class:`Analysis` is deleted.
-
-    Fires for both direct deletes and project-cascade deletes. Storage cleanup
-    for the analysis's artifacts is handled by the imagery/exports post_delete
-    handlers as their rows cascade; this handler only writes the audit trail.
-
-    Failures to write the audit event are logged and swallowed so a best-effort
-    audit never breaks the delete transaction.
-    """
+def record_analysis_deletion(
+    sender: type[Analysis],
+    instance: Analysis,
+    **_: Any,
+) -> None:
+    """Record an immutable audit event when an Analysis is deleted."""
     actor = getattr(instance, _AUDIT_ACTOR_ATTR, None)
-    project_id = getattr(instance, _AUDIT_PROJECT_ID_ATTR, None)
-    logger.warning("PD_DEBUG stash=%r has=%r direct=%r", project_id, hasattr(instance, _AUDIT_PROJECT_ID_ATTR), instance.project_id)
-    if project_id is None:
-        project_id = instance.project_id
+    project_id = getattr(instance, _AUDIT_PROJECT_ID_ATTR, instance.project_id)
+
     try:
         AuditService().record(
             action="analysis.deleted",
@@ -74,9 +68,14 @@ def record_analysis_deletion(sender: type[Analysis], instance: Analysis, **_: An
                 "status": instance.status,
             },
         )
-        logger.info("Recorded analysis deletion audit event")
-    except Exception:  # audit is best-effort and must never block the delete
-        logger.warning(
+        logger.info(
+            "Recorded analysis deletion audit event",
+            extra={"analysis_id": str(instance.pk)},
+        )
+    except Exception:
+        logger.exception(
             "Failed to record analysis deletion audit event",
             extra={"analysis_id": str(instance.pk)},
         )
+
+
