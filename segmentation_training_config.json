@@ -1,0 +1,59 @@
+{
+  "model_file": "unet_buildings.keras",
+  "input_bands_1_based": [
+    1,
+    2,
+    3
+  ],
+  "band_meaning": {
+    "1": "B04 / Red",
+    "2": "B03 / Green",
+    "3": "B02 / Blue"
+  },
+  "normalization": {
+    "type": "per_image_per_band_percentile",
+    "pmin": 2,
+    "pmax": 98,
+    "output_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "patch_size": 256,
+  "recommended_inference_stride": 128,
+  "prediction_threshold": 0.2,
+  "validation_metrics_at_selected_threshold": {
+    "tp": 914969,
+    "fp": 743202,
+    "fn": 139199,
+    "tn": 1348358,
+    "precision": 0.5517941153234465,
+    "recall": 0.8679536848016552,
+    "f1": 0.6746715610072377,
+    "iou": 0.5090599041933463,
+    "dice": 0.6746715657592924
+  },
+  "dataset_path": "/kaggle/input/datasets",
+  "number_of_input_tifs": 15,
+  "number_of_labelled_images": 10,
+  "number_of_training_images": 8,
+  "number_of_validation_images": 2,
+  "number_of_training_patches": 192,
+  "number_of_validation_patches": 48,
+  "label_source": "OpenStreetMap building footprints",
+  "train_images": [
+    "apartment_blocks__berlin_marzahn.tif",
+    "industrial_commercial__hamburg_harbor.tif",
+    "dense_historic__paris.tif",
+    "apartment_blocks__zagreb.tif",
+    "dense_historic__barcelona.tif",
+    "mediterranean_compact__athens.tif",
+    "apartment_blocks__warsaw.tif",
+    "industrial_commercial__birmingham_aston.tif"
+  ],
+  "validation_images": [
+    "dense_historic__vienna.tif",
+    "industrial_commercial__rotterdam.tif"
+  ],
+  "seed": 42
+}
