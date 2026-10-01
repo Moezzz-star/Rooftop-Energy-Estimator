@@ -22,7 +22,7 @@ COPY frontend/ ./
 USER node
 EXPOSE 5173
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD wget -qO- http://localhost:5173/ >/dev/null 2>&1 || exit 1
+    CMD node -e "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 # --host exposes the dev server outside the container network namespace.
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
 

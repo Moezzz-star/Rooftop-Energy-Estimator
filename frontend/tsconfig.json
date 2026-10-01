@@ -13,7 +13,6 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-
     /* Strictness */
     "strict": true,
     "noUnusedLocals": true,
@@ -24,9 +23,8 @@
     "forceConsistentCasingInFileNames": true,
 
     "types": ["vitest/globals", "@testing-library/jest-dom"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"]

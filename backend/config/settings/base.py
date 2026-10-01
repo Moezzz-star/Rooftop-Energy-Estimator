@@ -208,6 +208,12 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS: list[str] = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    "idempotency-key",
+)
 
 # ---------------------------------------------------------------------------
 # Celery
